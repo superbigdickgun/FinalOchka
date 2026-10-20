@@ -135,8 +135,13 @@ public class Pistol : MonoBehaviour
         Vector2 origin = muzzle.position;
         Vector2 aim = player.AimDirection;
 
+        // === ИСКЛЮЧАЕМ Floor и Triggers из рейкаста лазера ===
         int floorLayer = LayerMask.NameToLayer("Floor");
-        int laserMask = floorLayer >= 0 ? ~(1 << floorLayer) : ~0;
+        int triggerLayer = LayerMask.NameToLayer("Triggers");
+
+        int laserMask = ~0;
+        if (floorLayer >= 0) laserMask &= ~(1 << floorLayer);
+        if (triggerLayer >= 0) laserMask &= ~(1 << triggerLayer);
 
         RaycastHit2D hit = Physics2D.Raycast(origin, aim, laserRange, laserMask);
         Vector2 end = hit.collider != null

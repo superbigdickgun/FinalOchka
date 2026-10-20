@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "com.nopnag.codecombiner": {
+      "version": "file:C:/Users/Стас/Desktop/юнити игры/nlo/CodeCombiner-main",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {}
+    },
     "com.unity.2d.animation": {
       "version": "16.0.0",
       "depth": 0,

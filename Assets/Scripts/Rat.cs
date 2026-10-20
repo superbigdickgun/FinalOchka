@@ -128,6 +128,14 @@ public class Rat : MonoBehaviour
             else return;
         }
 
+        // === ЕСЛИ ИГРОК НЕ В АМБАРЕ — ТОЛЬКО ПАТРУЛЬ ===
+        bool playerInside = BarnZone.Instance != null && BarnZone.Instance.PlayerInside;
+        if (!playerInside)
+        {
+            Patrol();
+            return;
+        }
+
         // === РЫВОК (только обычные) ===
         if (!isKing && dashTimer > 0f)
         {
@@ -221,6 +229,13 @@ public class Rat : MonoBehaviour
         }
 
         // === ПАТРУЛЬ ===
+        Patrol();
+    }
+
+    // Патруль вынесен отдельно — используется и когда игрок вне амбара,
+    // и когда игрок в амбаре, но вне радиуса поиска
+    void Patrol()
+    {
         currentSpeed = moveSpeed;
 
         if (waitTimer > 0f) { waitTimer -= Time.deltaTime; moveDir = Vector2.zero; return; }
@@ -291,7 +306,7 @@ public class Rat : MonoBehaviour
         var health = player.GetComponent<PlayerHealth>();
         if (health != null) health.TakeDamage(attackDamage);
 
-        // === ТОЛЧОК ИГРОКА ЧЕРЕЗ AddForce ===
+        // Толчок игрока
         PushPlayer();
 
         // Отбегаем
@@ -307,18 +322,14 @@ public class Rat : MonoBehaviour
 
         Vector2 dir = ((Vector2)player.transform.position - (Vector2)transform.position).normalized;
 
-        // Пытаемся толкнуть Rigidbody2D игрока
         var playerRb = player.GetComponent<Rigidbody2D>();
         if (playerRb != null && playerRb.bodyType == RigidbodyType2D.Dynamic)
         {
             playerRb.AddForce(dir * knockbackForce, ForceMode2D.Impulse);
-            Debug.Log("[Rat] Толчок игрока, сила: " + knockbackForce);
         }
         else
         {
-            // Игрок Kinematic — толкаем через MovePosition
             player.ApplyRecoil(-dir, knockbackForce * 0.1f);
-            Debug.Log("[Rat] Толчок через ApplyRecoil");
         }
     }
 

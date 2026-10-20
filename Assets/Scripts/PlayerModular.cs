@@ -30,6 +30,9 @@ public class PlayerModular : MonoBehaviour
     public float stepPitchVariation = 0.1f;
     public bool avoidRepeat = true;
 
+    // ✅ ФЛАГ: когда true — обычные шаги не играют (например, на траве)
+    [HideInInspector] public bool stepsMuted = false;
+
     private Rigidbody2D rb;
     private CircleCollider2D col;
     private Vector2 moveInput;
@@ -137,6 +140,9 @@ public class PlayerModular : MonoBehaviour
 
     void UpdateStepSound()
     {
+        // ✅ Если шаги заглушены — не обновляем таймер
+        if (stepsMuted) return;
+
         if (!isMoving || isJumping) return;
         if (stepSounds == null || stepSounds.Length == 0) return;
 
@@ -153,6 +159,9 @@ public class PlayerModular : MonoBehaviour
 
     void PlayStepSound()
     {
+        // ✅ Если шаги заглушены — не играем
+        if (stepsMuted) return;
+
         if (audioSource == null) return;
         if (stepSounds == null || stepSounds.Length == 0) return;
 

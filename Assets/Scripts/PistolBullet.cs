@@ -24,9 +24,13 @@ public class PistolBullet : MonoBehaviour
         direction = dir.normalized;
         traveled = 0f;
 
-        // Игнорируем Floor
+        // === ИСКЛЮЧАЕМ Floor и Triggers из маски пули ===
         int floorLayer = LayerMask.NameToLayer("Floor");
-        bulletLayerMask = floorLayer >= 0 ? ~(1 << floorLayer) : ~0;
+        int triggerLayer = LayerMask.NameToLayer("Triggers");
+
+        bulletLayerMask = ~0;
+        if (floorLayer >= 0) bulletLayerMask &= ~(1 << floorLayer);
+        if (triggerLayer >= 0) bulletLayerMask &= ~(1 << triggerLayer);
 
         Vector3 p = transform.position;
         transform.position = new Vector3(p.x, p.y, zPos);
@@ -42,7 +46,7 @@ public class PistolBullet : MonoBehaviour
         float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
         transform.rotation = Quaternion.Euler(0f, 0f, angle);
 
-        Debug.Log("[Bullet] Init. Floor layer=" + floorLayer + " mask=" + bulletLayerMask);
+        Debug.Log("[Bullet] Init. Floor layer=" + floorLayer + " Trigger layer=" + triggerLayer + " mask=" + bulletLayerMask);
     }
 
     void Update()
