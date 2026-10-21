@@ -3,13 +3,8 @@ using UnityEngine;
 public class BloodDecal : MonoBehaviour
 {
     [Header("=== ПЯТНО ===")]
-    [Tooltip("Размер пятна (min, max).")]
     public Vector2 sizeRange = new Vector2(0.3f, 0.8f);
-
-    [Tooltip("Сколько пятен создаётся (кластер).")]
     public int decalCount = 1;
-
-    [Tooltip("Разброс между пятнами в кластере.")]
     public float spreadBetweenDecals = 0.2f;
 
     [Header("=== ЦВЕТА ===")]
@@ -23,12 +18,16 @@ public class BloodDecal : MonoBehaviour
     [Header("=== SORTING ===")]
     public int sortingOrder = 1;
 
+    [Header("=== ОТЛАДКА ===")]
+    public bool debugLogs = false;
+
     void Start()
     {
         for (int i = 0; i < decalCount; i++)
             SpawnDecal(i);
 
-        Destroy(gameObject, 0.1f);
+        // НЕ уничтожаем себя — пятна остаются
+        // Destroy(gameObject, 0.1f); // ← УБРАНО
     }
 
     void SpawnDecal(int index)
@@ -45,5 +44,10 @@ public class BloodDecal : MonoBehaviour
         float size = Random.Range(sizeRange.x, sizeRange.y);
         go.transform.localScale = new Vector3(size, size * 0.7f, 1f);
         go.transform.rotation = Quaternion.Euler(0, 0, Random.Range(0f, 360f));
+
+        // ❌ НЕ добавляем коллайдер (оптимизация)
+
+        if (debugLogs)
+            Debug.Log("[BloodDecal] Пятно " + index + " создано");
     }
 }

@@ -43,6 +43,10 @@ public class RatKing : MonoBehaviour
         if (!spawnEnabled) return;
         if (ratPrefab == null) return;
 
+        // === СПАВН ТОЛЬКО ЕСЛИ ИГРОК В АМБАРЕ ===
+        bool playerInside = BarnZone.Instance != null && BarnZone.Instance.PlayerInside;
+        if (!playerInside) return;
+
         aliveRats.RemoveAll(r => r == null);
 
         if (aliveRats.Count >= maxRatsAlive) return;
