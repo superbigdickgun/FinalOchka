@@ -8,27 +8,42 @@ public class BloodDrop : MonoBehaviour
 
     private SpriteRenderer sr;
     private float timer = 0f;
+    private bool isFrozen = false;
 
     void Start()
     {
         sr = GetComponent<SpriteRenderer>();
         if (sr == null) sr = gameObject.AddComponent<SpriteRenderer>();
-        
-        // Случайный поворот для разнообразия
         transform.rotation = Quaternion.Euler(0, 0, Random.Range(0f, 360f));
     }
 
     void Update()
     {
-        timer += Time.deltaTime;
+        if (isFrozen) return;
 
-        // Просто летим в заданном направлении
+        timer += Time.deltaTime;
         transform.position += (Vector3)velocity * Time.deltaTime;
 
-        // Плавно уменьшаем размер и прозрачность в конце жизни
+        // Плавное торможение (опционально)
+        velocity *= 0.98f;
+
         if (timer >= lifetime)
         {
-            Destroy(gameObject);
+            // ✅ НЕ УНИЧТОЖАЕМ, А ЗАМОРАЖИВАЕМ НА МЕСТЕ
+            Freeze();
+        }
+    }
+
+    public void Freeze()
+    {
+        isFrozen = true;
+        velocity = Vector2.zero;
+        
+        // Делаем каплю темнее и чуть меньше (как засохшее пятно)
+        if (sr != null)
+        {
+            sr.color = new Color(sr.color.r * 0.7f, sr.color.g * 0.7f, sr.color.b * 0.7f, 0.8f);
+            transform.localScale *= 0.9f;
         }
     }
 }

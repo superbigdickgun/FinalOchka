@@ -4,28 +4,23 @@ public class BloodFXController : MonoBehaviour
 {
     [Header("=== ЛУЖА КРОВИ ===")]
     public Color puddleColor = new Color(0.4f, 0f, 0f, 0.9f);
-    [Tooltip("Мин и макс размер лужи.")]
     public Vector2 puddleSizeRange = new Vector2(1.5f, 2.5f);
 
     [Header("=== БРЫЗГИ (ФОНТАН) ===")]
     public Color dropColor = new Color(0.6f, 0f, 0f, 0.9f);
-    
-    [Tooltip("Сколько капель вылетает за раз.")]
     public int dropCount = 35;
-
-    [Tooltip("РАДИУС ФОНТАНА: как далеко разлетаются капли (в юнитах).")]
     [Range(0.5f, 10f)] public float splatterRadius = 2.5f;
-    
-    [Tooltip("Время жизни капли (сек).")]
     public float dropLifetime = 1.2f;
-    
-    [Tooltip("Размер одной капли.")]
     public float dropSize = 0.15f;
 
     [Header("=== ПОЛОСА (СЛЕД) ===")]
     public Color trailColor = new Color(0.3f, 0f, 0f, 0.8f);
-    public float trailLifetime = 3f;
     public float trailSize = 0.3f;
+
+    // ✅ ЖЁСТКИЕ СЛОИ (НИКАКИХ НАСТРОЕК)
+    private const int PUDDLE_ORDER = 1;
+    private const int TRAIL_ORDER = 2;
+    private const int SPLATTER_ORDER = 20;
 
     private Sprite puddleSprite;
     private Sprite dropSprite;
@@ -47,7 +42,7 @@ public class BloodFXController : MonoBehaviour
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite = puddleSprite;
         sr.color = puddleColor;
-        sr.sortingOrder = -1;
+        sr.sortingOrder = PUDDLE_ORDER; // ✅ 1
 
         float size = Random.Range(puddleSizeRange.x, puddleSizeRange.y);
         go.transform.localScale = new Vector3(size, size * 0.8f, 1f);
@@ -65,22 +60,18 @@ public class BloodFXController : MonoBehaviour
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = dropSprite;
             sr.color = dropColor;
-            sr.sortingOrder = 2;
+            sr.sortingOrder = SPLATTER_ORDER; // ✅ 20
 
             go.transform.localScale = Vector3.one * dropSize;
 
             var drop = go.AddComponent<BloodDrop>();
             
-            // Вычисляем направление и скорость на основе радиуса
             Vector2 dir = Random.insideUnitCircle.normalized;
-            
             float speed = splatterRadius / dropLifetime; 
             speed *= Random.Range(0.7f, 1.3f);
 
             drop.velocity = dir * speed;
             drop.lifetime = dropLifetime;
-            
-            // ❌ Строка drop.floorLevelY = floorLevelY; УДАЛЕНА
         }
     }
 
@@ -93,20 +84,16 @@ public class BloodFXController : MonoBehaviour
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite = trailSprite;
         sr.color = trailColor;
-        sr.sortingOrder = 0;
+        sr.sortingOrder = TRAIL_ORDER; // ✅ 2
         
         go.transform.localScale = Vector3.one * trailSize;
         go.transform.rotation = Quaternion.Euler(0, 0, Random.Range(0f, 360f));
-        
-        Destroy(go, trailLifetime);
     }
 
-    public void ClearAllBlood()
+    public void FreezeAll()
     {
-        for (int i = transform.childCount - 1; i >= 0; i--)
-        {
-            Destroy(transform.GetChild(i).gameObject);
-        }
+        var drops = GetComponentsInChildren<BloodDrop>();
+        foreach (var drop in drops) drop.Freeze();
     }
 
     private Sprite CreateBlobSprite(int size)

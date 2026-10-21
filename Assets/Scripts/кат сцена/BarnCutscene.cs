@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine.Rendering.Universal;
 
 public class BarnCutscene : MonoBehaviour
@@ -12,7 +13,6 @@ public class BarnCutscene : MonoBehaviour
     [Header("=== НАСТРОЙКИ КАМЕРЫ ===")]
     public Transform cameraCorner;
     public float cornerCameraSize = 3f;
-    public float normalCameraSize = 5f;
     public float cameraFlightSpeed = 1.5f;
 
     [Header("=== УЧАСТНИКИ ===")]
@@ -41,6 +41,13 @@ public class BarnCutscene : MonoBehaviour
     public float ratSpeed = 2f;
     public float rotationOffset = 90f;
 
+    [Header("=== СЛОИ ===")]
+    [Tooltip("Слой для крыс и куриц (должен быть ниже тьмы).")]
+    public int characterOrder = 90;
+    
+    [Tooltip("Слой для тьмы (DarknessOverlay). Обычно 100.")]
+    public int darknessOrder = 100;
+
     private bool isPlaying = false;
     private bool hasPlayed = false;
 
@@ -49,6 +56,8 @@ public class BarnCutscene : MonoBehaviour
 
     private SpriteRenderer pistolSprite;
     private LineRenderer pistolLaser;
+
+    private Dictionary<SpriteRenderer, int> savedSortingOrders = new Dictionary<SpriteRenderer, int>();
 
     private void OnTriggerEnter2D(Collider2D other)
     {
@@ -100,6 +109,9 @@ public class BarnCutscene : MonoBehaviour
         
         if (ratKing != null) ratKing.spawnEnabled = false;
         if (kingTransform != null) kingTransform.gameObject.SetActive(false);
+
+        // ✅ НАСТРАИВАЕМ СЛОИ (КРЫСЫ ПОД ТЬМОЙ, НО НАД КРОВЬЮ)
+        SetupSortingOrders();
 
         chickenEaten.SetActive(true);
         var bloodyChicken = chickenEaten.GetComponent<BloodyChicken>();
@@ -251,6 +263,7 @@ public class BarnCutscene : MonoBehaviour
             }
 
             if (bloodFX != null) {
+                bloodFX.SpawnSplatter(pokeP);
                 bloodFX.SpawnSplatter(eatenChickenPos);
                 bloodFX.SpawnTrail(eatenChickenPos);
             }
@@ -269,10 +282,9 @@ public class BarnCutscene : MonoBehaviour
 
         if (bloodyChicken != null) bloodyChicken.StopFountain();
 
-        // ЭТАП 6: КАМЕРА ВОЗВРАЩАЕТСЯ И КРЫСЫ РАЗБЕГАЮТСЯ
+        // ЭТАП 6
         StartCoroutine(MoveCamera(savedCamPos, savedCamSize, cameraFlightSpeed));
         
-        // ✅ Крысы разбегаются и УНИЧТОЖАЮТСЯ
         foreach (var rat in allRats) 
         {
             if (rat != null) 
@@ -284,7 +296,7 @@ public class BarnCutscene : MonoBehaviour
 
         yield return new WaitForSeconds(1.5f);
 
-        // ЭТАП 7: ВОЗВРАЩАЕМ ИГРОКА
+        // ЭТАП 7: ВОЗВРАЩАЕМ ВСЁ
         if (spotLight != null) spotLight.enabled = false;
         if (cameraFollow != null) cameraFollow.enabled = true;
 
@@ -299,10 +311,81 @@ public class BarnCutscene : MonoBehaviour
             if (pistolLaser != null) pistolLaser.enabled = true;
         }
 
+        if (bloodFX != null) bloodFX.FreezeAll();
+        RestoreSortingOrders();
+
         if (ratKing != null) ratKing.spawnEnabled = true;
         if (kingTransform != null) kingTransform.gameObject.SetActive(true);
         
         isPlaying = false;
+    }
+
+    // ==========================================
+    // НАСТРОЙКА СЛОЁВ
+    // ==========================================
+    void SetupSortingOrders()
+    {
+        savedSortingOrders.Clear();
+
+        // 1. Сохраняем старые слои у участников
+        foreach (var obj in GetAllParticipants())
+        {
+            if (obj == null) continue;
+            var srs = obj.GetComponentsInChildren<SpriteRenderer>();
+            foreach (var sr in srs)
+            {
+                savedSortingOrders[sr] = sr.sortingOrder;
+            }
+        }
+
+        // 2. Ставим крысам и курицам слой 90 (ПОД тьмой 100)
+        if (chickenAlive != null) SetSorting(chickenAlive, characterOrder);
+        if (chickenEaten != null) SetSorting(chickenEaten, characterOrder);
+        
+        if (rat1 != null) SetSorting(rat1, characterOrder);
+        if (rat2 != null) SetSorting(rat2, characterOrder);
+        foreach (var rat in extraRats) if (rat != null) SetSorting(rat, characterOrder);
+
+        // 3. Принудительно ищем ВСЮ кровь в сцене и опускаем её вниз
+        var allSr = FindObjectsOfType<SpriteRenderer>();
+        foreach (var sr in allSr)
+        {
+            if (sr == null) continue;
+            
+            if (sr.name.Contains("Blood") || sr.GetComponent<BloodDrop>() != null)
+            {
+                if (!savedSortingOrders.ContainsKey(sr))
+                    savedSortingOrders[sr] = sr.sortingOrder;
+                
+                sr.sortingOrder = 1; // Кровь ниже крыс (90)
+            }
+        }
+    }
+
+    void RestoreSortingOrders()
+    {
+        foreach (var kvp in savedSortingOrders)
+        {
+            if (kvp.Key != null) kvp.Key.sortingOrder = kvp.Value;
+        }
+        savedSortingOrders.Clear();
+    }
+
+    void SetSorting(GameObject obj, int order)
+    {
+        var srs = obj.GetComponentsInChildren<SpriteRenderer>();
+        foreach (var sr in srs) sr.sortingOrder = order;
+    }
+
+    GameObject[] GetAllParticipants()
+    {
+        var list = new List<GameObject>();
+        if (chickenAlive != null) list.Add(chickenAlive);
+        if (chickenEaten != null) list.Add(chickenEaten);
+        if (rat1 != null) list.Add(rat1);
+        if (rat2 != null) list.Add(rat2);
+        foreach (var rat in extraRats) if (rat != null) list.Add(rat);
+        return list.ToArray();
     }
 
     void RotateTowards(Transform obj, Vector3 target)
@@ -326,7 +409,6 @@ public class BarnCutscene : MonoBehaviour
         }
     }
 
-    // ✅ НОВЫЙ МЕТОД: Убегает и исчезает
     IEnumerator MoveAndDestroy(Transform obj, Vector3 targetPos, float duration)
     {
         Vector3 startPos = obj.position;
@@ -337,7 +419,7 @@ public class BarnCutscene : MonoBehaviour
             obj.position = Vector3.Lerp(startPos, targetPos, t);
             yield return null;
         }
-        Destroy(obj.gameObject); // Уничтожаем крысу
+        Destroy(obj.gameObject);
     }
 
     IEnumerator MoveCamera(Vector3 targetPos, float targetSize, float duration)
@@ -354,25 +436,13 @@ public class BarnCutscene : MonoBehaviour
         }
     }
 
-    IEnumerator MoveObject(Transform obj, Vector3 targetPos, float duration)
-    {
-        Vector3 startPos = obj.position;
-        float t = 0f;
-        while (t < 1f)
-        {
-            t += Time.deltaTime / duration;
-            obj.position = Vector3.Lerp(startPos, targetPos, t);
-            yield return null;
-        }
-    }
-
     GameObject CreateLeg(Vector3 pos)
     {
         var go = new GameObject("ChickenLeg");
         go.transform.position = pos;
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite = legSprite;
-        sr.sortingOrder = 2;
+        sr.sortingOrder = characterOrder + 1; // 91 (чуть выше крыс)
         var piece = go.AddComponent<CutscenePiece>();
         piece.bloodTrailSprite = legSprite;
         return go;
