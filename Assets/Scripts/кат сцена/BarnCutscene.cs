@@ -28,11 +28,24 @@ public class BarnCutscene : MonoBehaviour
     public RatKing ratKing;
     public Transform kingTransform;
 
-    [Header("=== ЗВУК ===")]
+    [Header("=== ЗВУКИ ===")]
     public AudioSource audioSource;
     public AudioClip chickenScream;
     public AudioClip ripSound;
     
+    [Tooltip("4 звука чавканья.")]
+    public AudioClip[] chewSounds;
+    [Range(0f, 1f)] public float chewVolume = 0.8f;
+
+    [Tooltip("Звук фонтана крови.")]
+    public AudioClip bloodFountainClip;
+    [Range(0f, 1f)] public float fountainVolume = 0.5f;
+
+    [Tooltip("4 звука писка крыс.")]
+    public AudioClip[] ratSqueakSounds;
+    [Range(0f, 1f)] public float ratSqueakVolume = 0.4f;
+    public float ratSqueakInterval = 2.5f;
+
     [Header("=== КРОВЬ ===")]
     public BloodFXController bloodFX;
 
@@ -42,11 +55,10 @@ public class BarnCutscene : MonoBehaviour
     public float rotationOffset = 90f;
 
     [Header("=== СЛОИ ===")]
-    [Tooltip("Слой для крыс и куриц (должен быть ниже тьмы).")]
+    [Tooltip("Слой для крыс и куриц во время сцены (под тьмой).")]
     public int characterOrder = 90;
-    
-    [Tooltip("Слой для тьмы (DarknessOverlay). Обычно 100.")]
-    public int darknessOrder = 100;
+    [Tooltip("Слой для крови и лап (под игроком).")]
+    public int bloodOrder = -1;
 
     private bool isPlaying = false;
     private bool hasPlayed = false;
@@ -56,8 +68,15 @@ public class BarnCutscene : MonoBehaviour
 
     private SpriteRenderer pistolSprite;
     private LineRenderer pistolLaser;
-
     private Dictionary<SpriteRenderer, int> savedSortingOrders = new Dictionary<SpriteRenderer, int>();
+
+    private AudioSource chewSource;
+    private AudioSource fountainSource;
+    private AudioSource ratSqueakSource;
+    
+    private int lastChewIndex = -1;
+    private int lastRatSqueakIndex = -1;
+    private float ratSqueakTimer = 0f;
 
     private void OnTriggerEnter2D(Collider2D other)
     {
@@ -76,6 +95,26 @@ public class BarnCutscene : MonoBehaviour
         isPlaying = true;
         hasPlayed = true;
 
+        // СОЗДАЁМ ЗВУКОВЫЕ ИСТОЧНИКИ
+        chewSource = gameObject.AddComponent<AudioSource>();
+        chewSource.playOnAwake = false;
+        chewSource.spatialBlend = 0f;
+        chewSource.volume = chewVolume;
+
+        fountainSource = gameObject.AddComponent<AudioSource>();
+        fountainSource.playOnAwake = false;
+        fountainSource.loop = true;
+        fountainSource.spatialBlend = 0f;
+        fountainSource.volume = 0f;
+        if (bloodFountainClip != null) { fountainSource.clip = bloodFountainClip; fountainSource.Play(); }
+
+        ratSqueakSource = gameObject.AddComponent<AudioSource>();
+        ratSqueakSource.playOnAwake = false;
+        ratSqueakSource.spatialBlend = 0f;
+        ratSqueakSource.volume = ratSqueakVolume;
+
+        ratSqueakTimer = ratSqueakInterval;
+
         if (mainCamera != null)
         {
             savedCamPos = mainCamera.transform.position;
@@ -87,30 +126,21 @@ public class BarnCutscene : MonoBehaviour
         if (player != null) 
         {
             player.enabled = false; 
-            
             var pistol = player.GetComponentInChildren<Pistol>();
             if (pistol != null)
             {
                 pistolSprite = pistol.GetComponent<SpriteRenderer>();
                 if (pistolSprite != null) pistolSprite.enabled = false;
-
                 pistolLaser = pistol.GetComponentInChildren<LineRenderer>();
                 if (pistolLaser != null) pistolLaser.enabled = false;
             }
-
             var rb = player.GetComponent<Rigidbody2D>();
-            if (rb != null) 
-            {
-                rb.linearVelocity = Vector2.zero; 
-                rb.angularVelocity = 0f;
-                rb.simulated = false; 
-            }
+            if (rb != null) { rb.linearVelocity = Vector2.zero; rb.simulated = false; }
         }
         
         if (ratKing != null) ratKing.spawnEnabled = false;
         if (kingTransform != null) kingTransform.gameObject.SetActive(false);
 
-        // ✅ НАСТРАИВАЕМ СЛОИ (КРЫСЫ ПОД ТЬМОЙ, НО НАД КРОВЬЮ)
         SetupSortingOrders();
 
         chickenEaten.SetActive(true);
@@ -183,6 +213,8 @@ public class BarnCutscene : MonoBehaviour
             bloodFX.SpawnPuddle(catchPos);
             bloodFX.SpawnSplatter(catchPos);
         }
+        
+        PlayChew();
 
         GameObject leg1 = CreateLeg(rat1.transform.position);
         GameObject leg2 = CreateLeg(rat2.transform.position);
@@ -262,6 +294,8 @@ public class BarnCutscene : MonoBehaviour
                 yield return null;
             }
 
+            PlayChew();
+
             if (bloodFX != null) {
                 bloodFX.SpawnSplatter(pokeP);
                 bloodFX.SpawnSplatter(eatenChickenPos);
@@ -297,6 +331,9 @@ public class BarnCutscene : MonoBehaviour
         yield return new WaitForSeconds(1.5f);
 
         // ЭТАП 7: ВОЗВРАЩАЕМ ВСЁ
+        if (fountainSource != null) fountainSource.Stop();
+        if (ratSqueakSource != null) ratSqueakSource.Stop();
+
         if (spotLight != null) spotLight.enabled = false;
         if (cameraFollow != null) cameraFollow.enabled = true;
 
@@ -312,6 +349,8 @@ public class BarnCutscene : MonoBehaviour
         }
 
         if (bloodFX != null) bloodFX.FreezeAll();
+
+        // Возвращаем слои (крысам и курицам), кровь и лапы остаются под игроком
         RestoreSortingOrders();
 
         if (ratKing != null) ratKing.spawnEnabled = true;
@@ -320,44 +359,78 @@ public class BarnCutscene : MonoBehaviour
         isPlaying = false;
     }
 
+    void Update()
+    {
+        if (!isPlaying) return;
+        UpdateFountainVolume();
+        UpdateRatSqueaks();
+    }
+
+    void PlayChew()
+    {
+        if (chewSounds == null || chewSounds.Length == 0 || chewSource == null) return;
+        int index = Random.Range(0, chewSounds.Length);
+        if (chewSounds.Length > 1 && index == lastChewIndex) index = (index + 1) % chewSounds.Length;
+        lastChewIndex = index;
+        if (chewSounds[index] != null) chewSource.PlayOneShot(chewSounds[index], chewVolume);
+    }
+
+    void UpdateRatSqueaks()
+    {
+        if (ratSqueakSource == null || ratSqueakSounds == null || ratSqueakSounds.Length == 0) return;
+
+        ratSqueakTimer -= Time.deltaTime;
+        if (ratSqueakTimer <= 0f)
+        {
+            int index = Random.Range(0, ratSqueakSounds.Length);
+            if (ratSqueakSounds.Length > 1 && index == lastRatSqueakIndex) index = (index + 1) % ratSqueakSounds.Length;
+            lastRatSqueakIndex = index;
+
+            if (ratSqueakSounds[index] != null)
+            {
+                ratSqueakSource.pitch = 1f + Random.Range(-0.1f, 0.1f);
+                ratSqueakSource.PlayOneShot(ratSqueakSounds[index], ratSqueakVolume);
+            }
+
+            ratSqueakTimer = ratSqueakInterval + Random.Range(-0.5f, 0.5f);
+        }
+    }
+
+    void UpdateFountainVolume()
+    {
+        if (fountainSource == null || mainCamera == null || cameraCorner == null) return;
+        float dist = Vector2.Distance(mainCamera.transform.position, cameraCorner.position);
+        float t = Mathf.InverseLerp(10f, 2f, dist);
+        fountainSource.volume = Mathf.Lerp(fountainSource.volume, t * fountainVolume, Time.deltaTime * 2f);
+    }
+
     // ==========================================
-    // НАСТРОЙКА СЛОЁВ
+    // СЛОИ
     // ==========================================
     void SetupSortingOrders()
     {
         savedSortingOrders.Clear();
 
-        // 1. Сохраняем старые слои у участников
         foreach (var obj in GetAllParticipants())
         {
             if (obj == null) continue;
             var srs = obj.GetComponentsInChildren<SpriteRenderer>();
-            foreach (var sr in srs)
-            {
-                savedSortingOrders[sr] = sr.sortingOrder;
-            }
+            foreach (var sr in srs) savedSortingOrders[sr] = sr.sortingOrder;
         }
 
-        // 2. Ставим крысам и курицам слой 90 (ПОД тьмой 100)
         if (chickenAlive != null) SetSorting(chickenAlive, characterOrder);
         if (chickenEaten != null) SetSorting(chickenEaten, characterOrder);
-        
         if (rat1 != null) SetSorting(rat1, characterOrder);
         if (rat2 != null) SetSorting(rat2, characterOrder);
         foreach (var rat in extraRats) if (rat != null) SetSorting(rat, characterOrder);
 
-        // 3. Принудительно ищем ВСЮ кровь в сцене и опускаем её вниз
         var allSr = FindObjectsOfType<SpriteRenderer>();
         foreach (var sr in allSr)
         {
             if (sr == null) continue;
-            
             if (sr.name.Contains("Blood") || sr.GetComponent<BloodDrop>() != null)
             {
-                if (!savedSortingOrders.ContainsKey(sr))
-                    savedSortingOrders[sr] = sr.sortingOrder;
-                
-                sr.sortingOrder = 1; // Кровь ниже крыс (90)
+                sr.sortingOrder = bloodOrder;
             }
         }
     }
@@ -366,15 +439,27 @@ public class BarnCutscene : MonoBehaviour
     {
         foreach (var kvp in savedSortingOrders)
         {
-            if (kvp.Key != null) kvp.Key.sortingOrder = kvp.Value;
+            if (kvp.Key != null) 
+                kvp.Key.sortingOrder = kvp.Value;
         }
         savedSortingOrders.Clear();
+
+        // ✅ Кровь и лапы оставляем под игроком
+        var allSr = FindObjectsOfType<SpriteRenderer>();
+        foreach (var sr in allSr)
+        {
+            if (sr == null) continue;
+            if (sr.name.Contains("Blood") || sr.name.Contains("ChickenLeg") || sr.GetComponent<BloodDrop>() != null)
+            {
+                sr.sortingOrder = bloodOrder;
+            }
+        }
     }
 
     void SetSorting(GameObject obj, int order)
     {
-        var srs = obj.GetComponentsInChildren<SpriteRenderer>();
-        foreach (var sr in srs) sr.sortingOrder = order;
+        foreach (var sr in obj.GetComponentsInChildren<SpriteRenderer>())
+            sr.sortingOrder = order;
     }
 
     GameObject[] GetAllParticipants()
@@ -436,13 +521,14 @@ public class BarnCutscene : MonoBehaviour
         }
     }
 
+    // ✅ ЛАПЫ ТЕПЕРЬ ПОД ИГРОКОМ
     GameObject CreateLeg(Vector3 pos)
     {
         var go = new GameObject("ChickenLeg");
         go.transform.position = pos;
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite = legSprite;
-        sr.sortingOrder = characterOrder + 1; // 91 (чуть выше крыс)
+        sr.sortingOrder = bloodOrder; // ✅ Под игроком
         var piece = go.AddComponent<CutscenePiece>();
         piece.bloodTrailSprite = legSprite;
         return go;

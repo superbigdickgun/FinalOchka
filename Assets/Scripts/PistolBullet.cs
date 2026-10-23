@@ -24,7 +24,7 @@ public class PistolBullet : MonoBehaviour
         direction = dir.normalized;
         traveled = 0f;
 
-        // === ИСКЛЮЧАЕМ Floor и Triggers из маски пули ===
+        // Исключаем Floor и Triggers из маски пули
         int floorLayer = LayerMask.NameToLayer("Floor");
         int triggerLayer = LayerMask.NameToLayer("Triggers");
 
@@ -75,15 +75,23 @@ public class PistolBullet : MonoBehaviour
     {
         Debug.Log("[Bullet] Hit " + hit.collider.name);
 
+        // 1. Крыса
         var rat = hit.collider.GetComponentInParent<Rat>();
         if (rat != null) { rat.TakeHit(hit.point); Destroy(gameObject); return; }
 
+        // 2. Стена
         var wall = hit.collider.GetComponentInParent<Wall>();
         if (wall != null) { wall.BreakAtPoint(hit.point, 1f); Destroy(gameObject); return; }
 
+        // 3. Враг
         var enemy = hit.collider.GetComponentInParent<Enemy>();
         if (enemy != null) { enemy.TakeHit(hit.point); Destroy(gameObject); return; }
 
+        // 4. ✅ КИТ (добавлено)
+        var whale = hit.collider.GetComponentInParent<WhaleDamage>();
+        if (whale != null) { whale.TakeHit(hit.point); Destroy(gameObject); return; }
+
+        // 5. Если ничего не найдено
         Destroy(gameObject);
     }
 }

@@ -1,5 +1,7 @@
 using UnityEngine;
 
+// ✅ ГАРАНТИРУЕТ, ЧТО ПИСТОЛЕТ ОБНОВЛЯЕТСЯ ПОСЛЕ РУКИ (ArmGunPose)
+[DefaultExecutionOrder(300)]
 public class Pistol : MonoBehaviour
 {
     [Header("=== ССЫЛКИ ===")]
