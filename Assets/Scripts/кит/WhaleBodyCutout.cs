@@ -4,11 +4,15 @@ using UnityEngine;
 public class WhaleBodyCutout : MonoBehaviour
 {
     [Header("=== НАСТРОЙКИ ВЫРЕЗА ===")]
-    [Tooltip("Радиус выреза в юнитах.")]
     public float cutoutRadius = 2f;
-
-    [Tooltip("Мягкость краев (0 = резкий, 1 = мягкий).")]
     [Range(0f, 1f)] public float cutoutSoftness = 0.5f;
+
+    [Header("=== ПОДЛОЖКА ===")]
+    [Tooltip("Спрайт подложки (то, что должно быть видно сквозь дырку).")]
+    public SpriteRenderer backingSprite;
+
+    [Tooltip("Скрывать подложку, когда вырез не активен.")]
+    public bool hideBackingWhenInactive = false;
 
     private SpriteRenderer sr;
     private Texture2D workingTex;
@@ -40,42 +44,48 @@ public class WhaleBodyCutout : MonoBehaviour
         texH = workingTex.height;
         ppu = sr.sprite.pixelsPerUnit;
 
-        // Сохраняем оригинальные пиксели
         originalPixels = workingTex.GetPixels();
         workingPixels = new Color[originalPixels.Length];
         System.Array.Copy(originalPixels, workingPixels, originalPixels.Length);
 
-        // ✅ ВЫЧИСЛЯЕМ СМЕЩЕНИЕ PIVOT
         pivotOffset = new Vector2(
             texW * sr.sprite.pivot.x / texW,
             texH * sr.sprite.pivot.y / texH
         );
+
+        // ✅ Скрываем подложку на старте, если нужно
+        if (backingSprite != null && hideBackingWhenInactive)
+            backingSprite.enabled = false;
     }
 
     public void StartCutout()
     {
         isCutActive = true;
         lastCutPos = new Vector2(-999, -999);
+
+        // ✅ Показываем подложку
+        if (backingSprite != null)
+            backingSprite.enabled = true;
     }
 
     public void StopCutout()
     {
         isCutActive = false;
         RestoreCutout();
+
+        // ✅ Скрываем подложку, если нужно
+        if (backingSprite != null && hideBackingWhenInactive)
+            backingSprite.enabled = false;
     }
 
     public void UpdateCutoutPosition(Vector3 worldPoint)
     {
         if (!isCutActive) return;
 
-        // 1. Переводим мир в локальные координаты спрайта
         Vector3 localPoint = transform.InverseTransformPoint(worldPoint);
-
-        // 2. Переводим в пиксели (с учетом пивота)
         int cx = Mathf.RoundToInt((localPoint.x * ppu) + pivotOffset.x);
         int cy = Mathf.RoundToInt((localPoint.y * ppu) + pivotOffset.y);
 
-        // Защита от выхода за границы
         cx = Mathf.Clamp(cx, 0, texW - 1);
         cy = Mathf.Clamp(cy, 0, texH - 1);
 
@@ -83,20 +93,16 @@ public class WhaleBodyCutout : MonoBehaviour
         int softRadius = Mathf.RoundToInt(pixelRadius * cutoutSoftness);
         int totalRadius = pixelRadius + softRadius;
 
-        // Если игрок не двигался (меньше 2 пикселей) — не пересчитываем
         if (Vector2.Distance(new Vector2(cx, cy), lastCutPos) < 2f) return;
 
-        // 3. Восстанавливаем область СТАРОГО выреза
         if (lastCutPos.x != -999)
         {
             RestoreArea((int)lastCutPos.x, (int)lastCutPos.y, lastRadius);
         }
 
-        // 4. Запоминаем новую позицию
         lastCutPos = new Vector2(cx, cy);
         lastRadius = totalRadius;
 
-        // 5. Делаем новую дырку
         for (int y = cy - totalRadius; y <= cy + totalRadius; y++)
         {
             for (int x = cx - totalRadius; x <= cx + totalRadius; x++)
@@ -126,7 +132,6 @@ public class WhaleBodyCutout : MonoBehaviour
         workingTex.Apply();
     }
 
-    // Восстанавливает оригинал в области старой дырки
     void RestoreArea(int cx, int cy, int radius)
     {
         for (int y = cy - radius; y <= cy + radius; y++)
