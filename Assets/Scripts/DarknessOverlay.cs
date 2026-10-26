@@ -13,19 +13,6 @@ public class DarknessOverlay : MonoBehaviour
         public bool flicker = false;
         public float flickerAmount = 0.1f;
         public float flickerSpeed = 8f;
-
-        [Header("=== КВАДРАТНЫЙ СВЕТ ===")]
-        [Tooltip("Если true — свет вырезается прямоугольником, а не кругом.")]
-        public bool isSquare = false;
-
-        [Tooltip("Полуразмер квадрата по X.")]
-        public float sizeX = 2f;
-
-        [Tooltip("Полуразмер квадрата по Y.")]
-        public float sizeY = 2f;
-
-        [Tooltip("Мягкость края квадрата (в юнитах).")]
-        public float squareSoftness = 0.5f;
     }
 
     [Header("=== ТЬМА ===")]
@@ -40,8 +27,8 @@ public class DarknessOverlay : MonoBehaviour
     [Range(5f, 360f)] public float coneAngle = 80f;
     public float coneSoftness = 1.5f;
 
-    [Header("=== СВЕЧИ (до 6) ===")]
-    public LightData[] lights = new LightData[0];
+    [Header("=== СВЕЧИ (до 10) ===")]
+    public LightData[] lights = new LightData[10];
 
     private SpriteRenderer sr;
     private Transform srTransform;
@@ -80,7 +67,7 @@ public class DarknessOverlay : MonoBehaviour
         srTransform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, 5f);
         UpdateSize();
 
-        // === КОНУС ИГРОКА (без изменений) ===
+        // === КОНУС ИГРОКА ===
         if (playerTransform != null)
         {
             mat.SetVector("_PlayerPos", new Vector4(
@@ -95,8 +82,8 @@ public class DarknessOverlay : MonoBehaviour
             mat.SetFloat("_PlayerSoftness", Mathf.Max(0.01f, coneSoftness));
         }
 
-        // === СВЕЧИ / СВЕТ (без изменений + новые квадратные параметры) ===
-        int count = Mathf.Min(lights.Length, 6);
+        // === СВЕТ (до 10 слотов) ===
+        int count = Mathf.Min(lights.Length, 10);
         mat.SetInt("_LightCount", count);
 
         for (int i = 0; i < count; i++)
@@ -105,8 +92,6 @@ public class DarknessOverlay : MonoBehaviour
             if (l == null || l.lightTransform == null)
             {
                 mat.SetFloat("_LightIntensity" + i, 0f);
-                // Новые параметры — сбрасываем в 0, чтобы старые круги работали как раньше
-                mat.SetFloat("_LightIsSquare" + i, 0f);
                 continue;
             }
 
@@ -120,12 +105,6 @@ public class DarknessOverlay : MonoBehaviour
             mat.SetFloat("_LightRadius" + i, r);
             mat.SetFloat("_LightSoftness" + i, Mathf.Max(0.01f, l.softness));
             mat.SetFloat("_LightIntensity" + i, l.intensity);
-
-            // === НОВОЕ: параметры квадрата ===
-            mat.SetFloat("_LightIsSquare" + i, l.isSquare ? 1f : 0f);
-            mat.SetFloat("_LightSizeX" + i, l.sizeX);
-            mat.SetFloat("_LightSizeY" + i, l.sizeY);
-            mat.SetFloat("_LightSquareSoftness" + i, Mathf.Max(0.01f, l.squareSoftness));
         }
 
         mat.SetColor("_Color", new Color(

@@ -19,47 +19,43 @@ public class WhaleCutscene : MonoBehaviour
     public GameObject[] crows;
     public BloodFXController bloodFX;
     public Transform bloodSpawnPoint;
-
-    [Header("=== НАСТРОЙКИ БРЫЗГ ===")]
     public int splatterCount = 3;
-
-    [Header("=== ЗОНА СРАБАТЫВАНИЯ ===")]
-    [Tooltip("Перетащите сюда BoxCollider2D (Is Trigger ✅). При входе в него сработает кат-сцена.")]
-    public Collider2D triggerZone;
 
     public bool IsPlaying { get; private set; } = false;
 
     private bool hasPlayed = false;
-    private Transform playerTransform;
+    private Vector3 savedPlayerPos;
+    private Quaternion savedPlayerRot;
+    private Rigidbody2D playerRb;
 
-    void Start()
+    // ✅ ВХОД В ЗОНУ (момент пересечения границы)
+    void OnTriggerEnter2D(Collider2D other)
     {
-        if (player == null) player = FindObjectOfType<PlayerModular>();
-        if (player != null) playerTransform = player.transform;
+        if (hasPlayed || IsPlaying) return;
+        if (!other.CompareTag("Player")) return;
 
-        // Автопоиск коллайдера на этом объекте
-        if (triggerZone == null) triggerZone = GetComponent<Collider2D>();
+        Debug.Log("[WhaleCutscene] Игрок пересёк границу зоны!");
 
-        // Убеждаемся, что коллайдер — триггер
-        if (triggerZone != null) triggerZone.isTrigger = true;
-    }
+        // ✅ СОХРАНЯЕМ ПОЗИЦИЮ ИГРОКА
+        savedPlayerPos = other.transform.position;
+        savedPlayerRot = other.transform.rotation;
 
-    void Update()
-    {
-        if (hasPlayed || IsPlaying || playerTransform == null || triggerZone == null) return;
-
-        // ✅ Проверяем, находится ли игрок ВНУТРИ коллайдера
-        if (triggerZone.OverlapPoint(playerTransform.position))
+        // ✅ ЖЁСТКО ОСТАНАВЛИВАЕМ ФИЗИКУ
+        playerRb = other.GetComponent<Rigidbody2D>();
+        if (playerRb != null)
         {
-            StartCoroutine(PlayCutscene());
+            playerRb.linearVelocity = Vector2.zero;
+            playerRb.angularVelocity = 0f;
+            playerRb.simulated = false;
         }
+
+        StartCoroutine(PlayCutscene());
     }
 
     IEnumerator PlayCutscene()
     {
         IsPlaying = true;
 
-        // ✅ Принудительно включаем воронов
         if (crows != null)
         {
             foreach (var crow in crows)
@@ -79,7 +75,7 @@ public class WhaleCutscene : MonoBehaviour
         if (cameraFollow != null) cameraFollow.enabled = false;
         if (player != null) player.enabled = false;
 
-        // ✅ КАМЕРА ЛЕТИТ К КИТУ
+        // ✅ КАМЕРА ЛЕТИТ
         float t = 0f;
         Vector3 startPos = mainCamera.transform.position;
         Vector3 endPos = new Vector3(cameraWhaleView.position.x, cameraWhaleView.position.y, startPos.z);
@@ -92,7 +88,11 @@ public class WhaleCutscene : MonoBehaviour
             yield return null;
         }
 
-        // ✅ ВЫЗЫВАЕМ БРЫЗГИ (пока камера смотрит)
+        // ✅ КРИК ВОРОНЫ
+        var whaleAudio = FindObjectOfType<WhaleAudio>();
+        if (whaleAudio != null) whaleAudio.PlayCrowScream();
+
+        // ✅ БРЫЗГИ
         if (bloodFX != null && bloodSpawnPoint != null)
         {
             for (int i = 0; i < splatterCount; i++)
@@ -114,20 +114,24 @@ public class WhaleCutscene : MonoBehaviour
             yield return null;
         }
 
+        // ✅ ВОЗВРАЩАЕМ ИГРОКА НА МЕСТО
+        if (player != null)
+        {
+            player.transform.position = savedPlayerPos;
+            player.transform.rotation = savedPlayerRot;
+            player.enabled = true;
+
+            if (playerRb != null)
+            {
+                playerRb.linearVelocity = Vector2.zero;
+                playerRb.angularVelocity = 0f;
+                playerRb.simulated = true;
+            }
+        }
+
         if (cameraFollow != null) cameraFollow.enabled = true;
-        if (player != null) player.enabled = true;
 
         hasPlayed = true;
         IsPlaying = false;
-    }
-
-    void OnDrawGizmos()
-    {
-        // ✅ Если коллайдера нет — рисуем круг-подсказку
-        if (triggerZone == null)
-        {
-            Gizmos.color = new Color(1f, 0.5f, 0f, 0.3f);
-            Gizmos.DrawWireSphere(transform.position, 10f);
-        }
     }
 }

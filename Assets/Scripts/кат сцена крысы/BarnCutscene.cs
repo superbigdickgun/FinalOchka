@@ -46,6 +46,11 @@ public class BarnCutscene : MonoBehaviour
     [Range(0f, 1f)] public float ratSqueakVolume = 0.4f;
     public float ratSqueakInterval = 2.5f;
 
+    [Header("=== ЗВУК ПОСЛЕ СЦЕНЫ ===")]
+    [Tooltip("Звук, который играет ПОСЛЕ окончания кат-сцены.")]
+    public AudioClip afterCutsceneSound;
+    [Range(0f, 1f)] public float afterCutsceneVolume = 0.8f;
+
     [Header("=== КРОВЬ ===")]
     public BloodFXController bloodFX;
 
@@ -95,7 +100,6 @@ public class BarnCutscene : MonoBehaviour
         isPlaying = true;
         hasPlayed = true;
 
-        // СОЗДАЁМ ЗВУКОВЫЕ ИСТОЧНИКИ
         chewSource = gameObject.AddComponent<AudioSource>();
         chewSource.playOnAwake = false;
         chewSource.spatialBlend = 0f;
@@ -350,11 +354,29 @@ public class BarnCutscene : MonoBehaviour
 
         if (bloodFX != null) bloodFX.FreezeAll();
 
-        // Возвращаем слои (крысам и курицам), кровь и лапы остаются под игроком
         RestoreSortingOrders();
 
         if (ratKing != null) ratKing.spawnEnabled = true;
         if (kingTransform != null) kingTransform.gameObject.SetActive(true);
+
+        // ✅ ЗВУК ПОСЛЕ КАТ-СЦЕНЫ (ОТДЕЛЬНЫЙ ИСТОЧНИК)
+        if (afterCutsceneSound != null)
+        {
+            var tempAudio = gameObject.AddComponent<AudioSource>();
+            tempAudio.playOnAwake = false;
+            tempAudio.spatialBlend = 0f;
+            tempAudio.volume = afterCutsceneVolume;
+            tempAudio.clip = afterCutsceneSound;
+            tempAudio.Play();
+            
+            Destroy(tempAudio, afterCutsceneSound.length + 1f);
+
+            Debug.Log("[BarnCutscene] Звук после сцены: " + afterCutsceneSound.name);
+        }
+        else
+        {
+            Debug.LogWarning("[BarnCutscene] afterCutsceneSound НЕ НАЗНАЧЕН!");
+        }
         
         isPlaying = false;
     }
@@ -404,9 +426,6 @@ public class BarnCutscene : MonoBehaviour
         fountainSource.volume = Mathf.Lerp(fountainSource.volume, t * fountainVolume, Time.deltaTime * 2f);
     }
 
-    // ==========================================
-    // СЛОИ
-    // ==========================================
     void SetupSortingOrders()
     {
         savedSortingOrders.Clear();
@@ -444,7 +463,6 @@ public class BarnCutscene : MonoBehaviour
         }
         savedSortingOrders.Clear();
 
-        // ✅ Кровь и лапы оставляем под игроком
         var allSr = FindObjectsOfType<SpriteRenderer>();
         foreach (var sr in allSr)
         {
@@ -521,14 +539,13 @@ public class BarnCutscene : MonoBehaviour
         }
     }
 
-    // ✅ ЛАПЫ ТЕПЕРЬ ПОД ИГРОКОМ
     GameObject CreateLeg(Vector3 pos)
     {
         var go = new GameObject("ChickenLeg");
         go.transform.position = pos;
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite = legSprite;
-        sr.sortingOrder = bloodOrder; // ✅ Под игроком
+        sr.sortingOrder = bloodOrder;
         var piece = go.AddComponent<CutscenePiece>();
         piece.bloodTrailSprite = legSprite;
         return go;
