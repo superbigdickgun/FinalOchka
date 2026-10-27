@@ -359,7 +359,7 @@ public class BarnCutscene : MonoBehaviour
         if (ratKing != null) ratKing.spawnEnabled = true;
         if (kingTransform != null) kingTransform.gameObject.SetActive(true);
 
-        // ✅ ЗВУК ПОСЛЕ КАТ-СЦЕНЫ (ОТДЕЛЬНЫЙ ИСТОЧНИК)
+        // ✅ ЗВУК ПОСЛЕ КАТ-СЦЕНЫ
         if (afterCutsceneSound != null)
         {
             var tempAudio = gameObject.AddComponent<AudioSource>();
@@ -370,12 +370,6 @@ public class BarnCutscene : MonoBehaviour
             tempAudio.Play();
             
             Destroy(tempAudio, afterCutsceneSound.length + 1f);
-
-            Debug.Log("[BarnCutscene] Звук после сцены: " + afterCutsceneSound.name);
-        }
-        else
-        {
-            Debug.LogWarning("[BarnCutscene] afterCutsceneSound НЕ НАЗНАЧЕН!");
         }
         
         isPlaying = false;
